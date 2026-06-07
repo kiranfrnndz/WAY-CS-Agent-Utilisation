@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WAY CS – Agent Performance Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f5f2;--surface:#fff;--border:#e2e0d8;--border2:#ccc;
+  --text:#1a1a1a;--muted:#666;--faint:#999;
+  --blue:#185FA5;--blue-lt:#E6F1FB;--blue-dk:#0C447C;
+  --green:#0F6E56;--green-lt:#EAF3DE;--green-dk:#27500A;
+  --amber:#BA7517;--amber-lt:#FAEEDA;--amber-dk:#633806;
+  --red:#A32D2D;--red-lt:#FCEBEB;--red-dk:#791F1F;
+  --purple:#534AB7;--purple-lt:#EEEDFE;--purple-dk:#3C3489;
+  --teal:#1D9E75;--teal-lt:#E1F5EE;
+  --nav-h:48px;--top-h:52px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;background:var(--bg);color:var(--text);min-height:100vh}
+/* ── TOP BAR ── */
+#topbar{display:flex;align-items:center;gap:10px;height:var(--top-h);padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+#topbar h1{font-size:14px;font-weight:600;flex:1;white-space:nowrap}
+#topbar h1 span{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
+.tb-input{font-size:12px;padding:5px 9px;border:1px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);outline:none}
+.tb-input:focus{border-color:var(--blue)}
+.btn{font-size:12px;padding:5px 12px;border:1px solid var(--border2);border-radius:6px;background:var(--surface);cursor:pointer;color:var(--text);transition:.15s}
+.btn:hover{background:var(--bg)}
+.btn-primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn-primary:hover{background:var(--blue-dk)}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:500}
+.tag-blue{background:var(--blue-lt);color:var(--blue-dk)}
+.tag-green{background:var(--green-lt);color:var(--green-dk)}
+.tag-amber{background:var(--amber-lt);color:var(--amber-dk)}
+.tag-red{background:var(--red-lt);color:var(--red-dk)}
+.tag-purple{background:var(--purple-lt);color:var(--purple-dk)}
+.tag-teal{background:var(--teal-lt);color:var(--green-dk)}
+/* ── UPLOAD SCREEN ── */
+#upload-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - var(--top-h));gap:24px;padding:32px}
+.upload-area{background:var(--surface);border:2px dashed var(--border2);border-radius:12px;padding:24px 28px;text-align:center;cursor:pointer;transition:.2s}
+.upload-area:hover,.upload-area.drag{border-color:var(--blue);background:var(--blue-lt)}
+.upload-area h3{font-size:14px;font-weight:600;margin-bottom:6px}
+.upload-area p{font-size:12px;color:var(--muted)}
+.upload-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;width:100%;max-width:1100px}
+@media(max-width:800px){.upload-grid{grid-template-columns:1fr}}
+.upload-status{font-size:12px;padding:6px 10px;border-radius:6px;margin-top:8px}
+.upload-ok{background:var(--green-lt);color:var(--green-dk)}
+.upload-err{background:var(--red-lt);color:var(--red-dk)}
+/* ── NAV ── */
+#nav{display:flex;border-bottom:1px solid var(--border);background:var(--surface);overflow-x:auto;position:sticky;top:var(--top-h);z-index:99}
+.nav-btn{padding:0 16px;height:var(--nav-h);font-size:12px;font-weight:500;border:none;background:none;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap;transition:.15s}
+.nav-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+.nav-btn:hover:not(.active){color:var(--text);background:var(--bg)}
+/* ── LAYOUT ── */
+#main-content{padding:16px;max-width:1400px;margin:0 auto}
+.tab-pane{display:none}.tab-pane.active{display:block}
+.row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.kpi-label{font-size:11px;color:var(--muted);margin-bottom:4px}
+.kpi-val{font-size:22px;font-weight:600;color:var(--text);line-height:1.1}
+.kpi-sub{font-size:11px;color:var(--faint);margin-top:2px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.card-title{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text)}
+.card-title .sub{font-size:11px;font-weight:400;color:var(--muted);margin-left:6px}
+/* ── TABLE ── */
+.tbl-wrap{overflow-x:auto;max-height:340px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{position:sticky;top:0;text-align:left;background:var(--bg);color:var(--muted);font-weight:500;padding:7px 10px;border-bottom:1px solid var(--border);font-size:11px;z-index:2;white-space:nowrap}
+td{padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8f8f5}
+/* ── BARS ── */
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.bar-lbl{font-size:11px;color:var(--muted);width:120px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{flex:1;height:8px;background:var(--bg);border-radius:4px;overflow:hidden;border:1px solid var(--border)}
+.bar-fill{height:100%;border-radius:4px}
+.bar-val{font-size:11px;font-weight:600;width:48px;text-align:right;flex-shrink:0}
+/* ── AGENT SELECTOR ── */
+#agent-selector{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center}
+.agent-chip{font-size:12px;padding:4px 12px;border:1px solid var(--border2);border-radius:20px;background:var(--surface);cursor:pointer;transition:.15s}
+.agent-chip.sel{background:var(--blue);color:#fff;border-color:var(--blue)}
+.agent-chip:hover:not(.sel){background:var(--blue-lt);color:var(--blue-dk)}
+/* ── AGENT HOME GRID ── */
+.agent-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.agent-home-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:.15s}
+.agent-home-card:hover{border-color:var(--blue);box-shadow:0 2px 8px rgba(24,95,165,.1)}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--blue-lt);color:var(--blue-dk);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;margin-bottom:8px;flex-shrink:0}
+/* ── PROGRESS RING ── */
+.ring-wrap{position:relative;display:inline-flex;align-items:center;justify-content:center}
+.ring-center{position:absolute;text-align:center;pointer-events:none}
+/* ── INSIGHT CARD ── */
+.insight{border-left:3px solid;border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:12px;line-height:1.5;background:var(--bg)}
+.insight-good{border-color:var(--green)}
+.insight-warn{border-color:var(--amber)}
+.insight-bad{border-color:var(--red)}
+.insight-info{border-color:var(--blue)}
+/* ── TIMELINE BAR ── */
+.shift-tl{display:flex;height:28px;border-radius:6px;overflow:hidden;border:1px solid var(--border);margin-bottom:6px}
+.tl-seg{display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:600;min-width:1px}
+/* ── MISC ── */
+.stat-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
+.stat-row:last-child{border-bottom:none}
+.sk{color:var(--muted)}.sv{font-weight:600}
+.trend-up{color:var(--green)}.trend-dn{color:var(--red)}.trend-flat{color:var(--muted)}
+.up::before{content:'▲ '}.dn::before{content:'▼ '}.flat::before{content:'— '}
+.fcr-bar{height:12px;border-radius:6px;background:var(--bg);overflow:hidden;margin-bottom:3px;border:1px solid var(--border)}
+.fcr-fill{height:100%;border-radius:6px;background:var(--teal)}
+#loading-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.8);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:12px;font-size:14px;color:var(--blue)}
+.spinner{width:32px;height:32px;border:3px solid var(--blue-lt);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.validation-error{background:var(--red-lt);color:var(--red-dk);border:1px solid #F09595;border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px}
+.validation-ok{background:var(--green-lt);color:var(--green-dk);border:1px solid #97C459;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:4px}
+input[type=date]{font-size:12px;padding:5px 9px;border:1px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);outline:none}
+select.tb-input{min-width:130px}
+</style>
+</head>
+<body>
+
+<div id="loading-overlay"><div class="spinner"></div><span id="loading-msg">Processing data…</span></div>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <h1>WAY CS · Agent Performance <span id="period-label"></span></h1>
+  <input type="date" id="f-from" class="tb-input" title="From date">
+  <input type="date" id="f-to" class="tb-input" title="To date">
+  <select id="f-shift" class="tb-input tb-input">
+    <option value="">All shifts</option>
+    <option value="1">Shift 1 (02–11)</option>
+    <option value="2">Shift 2 (10–19)</option>
+    <option value="3">Shift 3 (18:30–03:30)</option>
+  </select>
+  <input type="text" id="f-agent" class="tb-input" placeholder="Search agent…" style="width:150px">
+  <button class="btn btn-primary" onclick="applyFilters()">Apply</button>
+  <button class="btn" onclick="resetUpload()">⟵ Upload new files</button>
+</div>
+
+<!-- NAV -->
+<div id="nav" style="display:none">
+  <button class="nav-btn active" onclick="showTab('home',this)">🏠 Overview</button>
+  <button class="nav-btn" onclick="showTab('t1',this)">👤 Individual</button>
+  <button class="nav-btn" onclick="showTab('t2',this)">📞 Queue</button>
+  <button class="nav-btn" onclick="showTab('t3',this)">⏱ Work Pattern</button>
+  <button class="nav-btn" onclick="showTab('t4',this)">✅ Quality</button>
+  <button class="nav-btn" onclick="showTab('t5',this)">💡 Coaching</button>
+  <button class="nav-btn" onclick="showTab('validation',this)">🔍 Validation</button>
+</div>
+
+<!-- UPLOAD SCREEN -->
+<div id="upload-screen">
+  <div style="text-align:center">
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:6px">Agent Performance Dashboard</h2>
+    <p style="color:var(--muted);font-size:13px">Upload the three Way.com CS reports to begin</p>
+  </div>
+  <div class="upload-grid">
+    <div class="upload-area" id="drop-ccdr" onclick="document.getElementById('inp-ccdr').click()" ondragover="dragOver(event,'drop-ccdr')" ondragleave="dragLeave('drop-ccdr')" ondrop="dropFile(event,'ccdr')">
+      <div style="font-size:28px;margin-bottom:8px">📋</div>
+      <h3>Call Centre Call Detail Report</h3>
+      <p>CC Call Detail · .xlsx</p>
+      <div id="status-ccdr"></div>
+    </div>
+    <div class="upload-area" id="drop-acd" onclick="document.getElementById('inp-acd').click()" ondragover="dragOver(event,'drop-acd')" ondragleave="dragLeave('drop-acd')" ondrop="dropFile(event,'acd')">
+      <div style="font-size:28px;margin-bottom:8px">🎧</div>
+      <h3>Agent Call Detail Report</h3>
+      <p>Agent Call Detail · .xlsx</p>
+      <div id="status-acd"></div>
+    </div>
+    <div class="upload-area" id="drop-crm" onclick="document.getElementById('inp-crm').click()" ondragover="dragOver(event,'drop-crm')" ondragleave="dragLeave('drop-crm')" ondrop="dropFile(event,'crm')">
+      <div style="font-size:28px;margin-bottom:8px">🎫</div>
+      <h3>CRM Ticket Report</h3>
+      <p>CS All Tickets · .xlsx</p>
+      <div id="status-crm"></div>
+    </div>
+  </div>
+  <div id="upload-validation" style="max-width:700px;width:100%"></div>
+  <button id="btn-load" class="btn btn-primary" style="display:none;padding:10px 28px;font-size:14px" onclick="buildDashboard()">Build Dashboard →</button>
+  <input type="file" id="inp-ccdr" accept=".xlsx" style="display:none" onchange="loadFile(this,'ccdr')">
+  <input type="file" id="inp-acd" accept=".xlsx" style="display:none" onchange="loadFile(this,'acd')">
+  <input type="file" id="inp-crm" accept=".xlsx" style="display:none" onchange="loadFile(this,'crm')">
+</div>
+
+<!-- MAIN CONTENT -->
+<div id="main-content" style="display:none">
+
+<!-- HOME -->
+<div class="tab-pane active" id="tab-home">
+  <div class="kpi-grid" id="home-kpis"></div>
+  <div class="row">
+    <div class="card" style="flex:1;min-width:280px">
+      <div class="card-title">Top queues by volume</div>
+      <div id="home-queue-bars"></div>
+    </div>
+    <div class="card" style="flex:1;min-width:280px">
+      <div class="card-title">Interaction type breakdown</div>
+      <div id="home-interaction-bars"></div>
+    </div>
+    <div class="card" style="flex:1;min-width:200px">
+      <div class="card-title">Call results</div>
+      <div id="home-result-bars"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Agent roster <span class="sub">— click a card to open individual dashboard</span>
+      <input type="text" id="roster-search" class="tb-input" placeholder="Search…" style="float:right;width:160px" oninput="filterRoster(this.value)">
+    </div>
+    <div class="agent-home-grid" id="agent-roster"></div>
+  </div>
+</div>
+
+<!-- INDIVIDUAL -->
+<div class="tab-pane" id="tab-t1">
+  <div id="agent-selector"></div>
+  <div id="t1-content"></div>
+</div>
+
+<!-- QUEUE -->
+<div class="tab-pane" id="tab-t2">
+  <div id="agent-selector-t2"></div>
+  <div id="t2-content"></div>
+</div>
+
+<!-- WORK PATTERN -->
+<div class="tab-pane" id="tab-t3">
+  <div id="agent-selector-t3"></div>
+  <div id="t3-content"></div>
+</div>
+
+<!-- QUALITY -->
+<div class="tab-pane" id="tab-t4">
+  <div id="agent-selector-t4"></div>
+  <div id="t4-content"></div>
+</div>
+
+<!-- COACHING -->
+<div class="tab-pane" id="tab-t5">
+  <div id="agent-selector-t5"></div>
+  <div id="t5-content"></div>
+</div>
+
+<!-- VALIDATION -->
+<div class="tab-pane" id="tab-validation">
+  <div id="validation-content"></div>
+</div>
+
+</div><!-- /main-content -->
+
+<script>
+/* ═══════════════════════════════════════════════
+   GLOBALS
+═══════════════════════════════════════════════ */
+let RAW = { ccdr: null, acd: null, crm: null };
+let DATA = {};  // processed
+let selectedAgent = null;
+
+const SHIFT_TIMES = {
+  1: { start: [2,0],  end: [11,0] },
+  2: { start: [10,0], end: [19,0] },
+  3: { start: [18,30],end: [3,30] }
+};
+
+// Interaction types excluded from FCR
+const FCR_EXCLUDE = new Set([
+  'AI-Agent Call','TL Review','Manager Review',
+  'Escalation handled by Escalation Team',
+  'Escalation handled by Ops Team',
+  'Escalation handled by TL',
+  'User Reviews','BBB Reviews','QC Audit','Dispute','Select','Internal'
+]);
+
+/* ═══════════════════════════════════════════════
+   UPLOAD / FILE HANDLING
+═══════════════════════════════════════════════ */
+function dragOver(e,id){e.preventDefault();document.getElementById(id).classList.add('drag')}
+function dragLeave(id){document.getElementById(id).classList.remove('drag')}
+function dropFile(e,key){e.preventDefault();dragLeave('drop-'+key);handleFile(e.dataTransfer.files[0],key)}
+function loadFile(inp,key){if(inp.files[0])handleFile(inp.files[0],key)}
+
+function handleFile(file,key){
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      // cellDates:true so SheetJS converts Excel date serials to JS Date objects
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true, raw:false});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+
+      if(key==='crm'){
+        RAW.crm = XLSX.utils.sheet_to_json(ws, {defval:''});
+      } else {
+        // ACD and CCDR have metadata rows at top; header row contains known column names.
+        // Read all rows as raw arrays first (no cellDates needed for scanning)
+        const wbRaw = XLSX.read(e.target.result, {type:'array'});
+        const wsRaw = wbRaw.Sheets[wbRaw.SheetNames[0]];
+        const allRows = XLSX.utils.sheet_to_json(wsRaw, {header:1, defval:''});
+
+        // Find header row: look for the row that contains both a name-like header
+        // and a time-like header (works for both ACD and CCDR)
+        const TARGET_COLS = {
+          acd:  ['Agent Name', 'Call Start Time', 'Call Type'],
+          ccdr: ['Call Center Name', 'Call Start Time', 'Call Result']
+        };
+        const targets = TARGET_COLS[key] || TARGET_COLS.acd;
+        let headerRowIdx = 7; // safe default
+        for(let i = 0; i < Math.min(15, allRows.length); i++){
+          const rowStr = allRows[i].map(c => String(c||'').trim());
+          const hits = targets.filter(t => rowStr.includes(t)).length;
+          if(hits >= 2){ headerRowIdx = i; break; }
+        }
+
+        const headers = allRows[headerRowIdx].map(h => String(h||'').trim());
+
+        // Now re-read with cellDates:true so time cells come as Date objects
+        const allRowsDt = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+
+        RAW[key] = [];
+        for(let i = headerRowIdx + 1; i < allRowsDt.length; i++){
+          const row = allRowsDt[i];
+          // Skip fully empty rows and footer rows (ACD footer rows have no Agent Name
+          // and their "Agent Name" cell is a summary label string, not a name)
+          if(!row || row.every(c => c==='' || c===null || c===undefined)) continue;
+          // Footer guard: first cell must look like a name (has a comma or is a known name pattern)
+          // For ACD the first col is Agent Name; for CCDR it's Call Center Name (a string)
+          const firstCell = String(row[0]||'').trim();
+          if(!firstCell) continue;
+          // Skip rows where first cell is a summary label (e.g. "ACD Calls: 962")
+          if(/^\s*(ACD|Total|Summary|Report|Start|End|Date|Time Zone)/i.test(firstCell)) continue;
+
+          const obj = {};
+          headers.forEach((h, j) => { if(h) obj[h] = row[j] ?? ''; });
+          RAW[key].push(obj);
+        }
+      }
+
+      setStatus(key, '✓ ' + file.name + ' (' + (RAW[key]?.length||0) + ' rows)', true);
+      checkAllUploaded();
+    } catch(err){
+      setStatus(key, '✗ Error reading file: ' + err.message, false);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function setStatus(key,msg,ok){
+  const el = document.getElementById('status-'+key);
+  el.innerHTML = '<div class="upload-status '+(ok?'upload-ok':'upload-err')+'">'+msg+'</div>';
+  document.getElementById('drop-'+key).style.borderColor = ok ? 'var(--green)' : 'var(--red)';
+}
+
+function checkAllUploaded(){
+  if(RAW.ccdr && RAW.acd && RAW.crm){
+    validateRaw();
+    document.getElementById('btn-load').style.display = 'inline-block';
+  }
+}
+
+function validateRaw(){
+  const errs = [];
+  const infos = [];
+
+  // ── CCDR checks ──
+  if(RAW.ccdr && RAW.ccdr.length){
+    const noDate = RAW.ccdr.filter(r => !r['Call Start Time']).length;
+    if(noDate) errs.push(`CCDR: ${noDate} rows with no Call Start Time — check file format`);
+    const abandoned = RAW.ccdr.filter(r => r['Call Result']==='Abandoned').length;
+    infos.push(`CCDR: ${RAW.ccdr.length.toLocaleString()} rows · ${abandoned} abandoned calls`);
+  }
+
+  // ── ACD checks — only flag rows that have a start time but no name ──
+  if(RAW.acd && RAW.acd.length){
+    const withTime = RAW.acd.filter(r => r['Call Start Time'] && String(r['Call Start Time']).trim() !== '');
+    const noName = withTime.filter(r => !r['Agent Name'] || String(r['Agent Name']).trim() === '').length;
+    // Only show as error if it's a substantial number (>5) — small numbers are expected internal/transfer rows
+    if(noName > 5) errs.push(`Agent Call Detail: ${noName} timed rows missing Agent Name — header may not have been detected correctly`);
+    const agents = new Set(RAW.acd.map(r => String(r['Agent Name']||'').trim()).filter(Boolean));
+    infos.push(`ACD: ${RAW.acd.length.toLocaleString()} rows · ${agents.size} unique agents`);
+  }
+
+  // ── CRM checks ──
+  if(RAW.crm && RAW.crm.length){
+    const noTicket = RAW.crm.filter(r => !r['Ticket ID']).length;
+    if(noTicket > 0) errs.push(`CRM: ${noTicket} rows with no Ticket ID`);
+
+    // Missing agent name: only flag non-AI, non-blank rows
+    const realRows = RAW.crm.filter(r => r['Agent Name'] && String(r['Agent Name']).trim() !== '' && String(r['Agent Name']).trim() !== 'ai-decagon ai-decagon');
+    const aiRows = RAW.crm.filter(r => String(r['Agent Name']||'').includes('ai-decagon')).length;
+    const blankAgent = RAW.crm.filter(r => !r['Agent Name'] || String(r['Agent Name']).trim() === '').length;
+    // Blank agent rows in CRM are usually auto-generated system rows — only flag if >20
+    if(blankAgent > 20) errs.push(`CRM: ${blankAgent} rows with no Agent Name (may need review)`);
+
+    const dups = findDupInteractions();
+    const uniqueTickets = new Set(RAW.crm.map(r => r['Ticket ID'])).size;
+    infos.push(`CRM: ${RAW.crm.length.toLocaleString()} rows · ${uniqueTickets.toLocaleString()} unique tickets · ${aiRows} AI-Agent rows`);
+    if(dups > 0) infos.push(`CRM: ${dups} OGI groups with multiple ticket IDs (same OGI + Reason + Sub Reason) — review in Validation tab`);
+  }
+
+  let html = '';
+  errs.forEach(e => html += `<div class="validation-error">⚠ ${e}</div>`);
+  infos.forEach(i => html += `<div class="validation-ok" style="background:#f0f8f4;color:var(--muted);border:1px solid var(--border)">ℹ ${i}</div>`);
+  if(!errs.length) html += '<div class="validation-ok" style="margin-top:8px">✓ Files look good — ready to build</div>';
+  document.getElementById('upload-validation').innerHTML = html;
+}
+
+function findDupInteractions(){
+  if(!RAW.crm) return 0;
+  const seen = new Map();
+  RAW.crm.forEach(r => {
+    const ogi = String(r['OGI']||'').trim();
+    // Only flag as duplicate when a real OGI exists — same OGI appearing on different Ticket IDs
+    // with same Reason+SubReason is the true duplicate signal
+    if(!ogi || ogi==='') return;
+    const key = ogi + '|' + (r['Reason']||'') + '|' + (r['Sub Reason']||'');
+    const tids = seen.get(key) || new Set();
+    tids.add(String(r['Ticket ID']||''));
+    seen.set(key, tids);
+  });
+  let count = 0;
+  seen.forEach(tids => { if(tids.size > 1) count++; });
+  return count;
+}
+
+/* ═══════════════════════════════════════════════
+   TIME HELPERS
+═══════════════════════════════════════════════ */
+function parseDateTime(v){
+  if(!v) return null;
+  if(v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  if(typeof v === 'number'){
+    // Excel serial date
+    if(v < 1000) return null; // tiny numbers are time fractions, not dates
+    const d = new Date(Math.round((v - 25569) * 86400000));
+    return isNaN(d.getTime()) || d.getFullYear() < 2020 ? null : d;
+  }
+  if(typeof v === 'string'){
+    v = v.trim();
+    if(!v) return null;
+    // Format: "06/01/2026, 00:09:20"
+    const m = v.match(/(\d{2})\/(\d{2})\/(\d{4}),?\s*(\d{2}):(\d{2}):?(\d{2})?/);
+    if(m) return new Date(+m[3], +m[1]-1, +m[2], +m[4], +m[5], +(m[6]||0));
+    const d = new Date(v);
+    return isNaN(d.getTime()) || d.getFullYear() < 2020 ? null : d;
+  }
+  return null;
+}
+
+function timeToSecs(v){
+  if(!v) return 0;
+  if(typeof v === 'number') return Math.round(v * 86400);
+  if(v instanceof Date) return v.getHours()*3600 + v.getMinutes()*60 + v.getSeconds();
+  if(typeof v === 'string'){
+    const p = v.split(':').map(Number);
+    if(p.length===3) return p[0]*3600+p[1]*60+p[2];
+    if(p.length===2) return p[0]*60+p[1];
+  }
+  return 0;
+}
+
+function fmtSecs(s){
+  s = Math.round(s);
+  if(s < 60) return s + 's';
+  const m = Math.floor(s/60), sec = s%60;
+  if(m < 60) return m + 'm ' + (sec?sec+'s':'');
+  return Math.floor(m/60)+'h '+(m%60)+'m';
+}
+
+function fmtTime(dt){
+  if(!dt) return '—';
+  return dt.toTimeString().slice(0,5);
+}
+
+function fmtDate(dt){
+  if(!dt) return '—';
+  return (dt.getMonth()+1)+'/'+dt.getDate()+'/'+dt.getFullYear();
+}
+
+function dateKey(dt){
+  if(!dt) return '';
+  return dt.getFullYear()+'-'+(dt.getMonth()+1)+'-'+dt.getDate();
+}
+
+/* ═══════════════════════════════════════════════
+   PROCESS DATA
+═══════════════════════════════════════════════ */
+function processData(){
+  // ── ACD ──
+  const acd = RAW.acd.map(r => ({
+    agent: normName(r['Agent Name']),
+    rawAgent: r['Agent Name'],
+    startDt: parseDateTime(r['Call Start Time']),
+    endDt: parseDateTime(r['Call End Time']),
+    callType: r['Call Type'] || '',
+    callerNum: String(r['Callers/Called Number'] || ''),
+    talkSecs: timeToSecs(r['Talk Time']),
+    holdSecs: timeToSecs(r['Hold Time']),
+    wrapSecs: timeToSecs(r['Wrap Up Time']),
+  })).filter(r => r.startDt && r.agent);
+
+  // ── CCDR ──
+  const ccdr = RAW.ccdr.map(r => ({
+    queue: r['Call Center Name'] || '',
+    startDt: parseDateTime(r['Call Start Time']),
+    endDt: parseDateTime(r['Call End Time']),
+    agent: normName(r['Agent Name']),
+    callerNum: String(r['Callers Number'] || ''),
+    result: r['Call Result'] || '',
+    waitSecs: timeToSecs(r['Wait Time']),
+    talkSecs: timeToSecs(r['Talk Time']),
+    holdSecs: timeToSecs(r['Hold Time']),
+    wrapSecs: timeToSecs(r['Wrap Up Time']),
+    bounces: +(r['Number of Bounces'] || 0),
+  })).filter(r => r.startDt);
+
+  // ── CRM ──
+  const crm = RAW.crm.map(r => ({
+    ticketId: String(r['Ticket ID'] || ''),
+    interactionId: String(r['Interaction ID'] || ''),
+    ticketDate: parseDateTime(r['Ticket_created_date']),
+    interactionDate: parseDateTime(r['Interaction created date']),
+    vertical: r['Vertical'] || '',
+    subVertical: r['SubVertical'] || '',
+    ogi: r['OGI'] || '',
+    lotName: r['Lot Name'] || '',
+    agent: normCRMName(r['Agent Name']),
+    rawAgent: r['Agent Name'] || '',
+    interaction: r['Interaction'] || '',
+    issueReason: r['TKT_IssueReason'] || '',
+    action: r['Action'] || '',
+    notes: r['Notes'] || '',
+    reason: r['Reason'] || '',
+    subReason: r['Sub Reason'] || '',
+    status: r['Status'] || '',
+  })).filter(r => r.ticketDate);
+
+  DATA = { acd, ccdr, crm };
+
+  // Extract date range from data
+  const allDates = acd.map(r=>r.startDt).concat(ccdr.map(r=>r.startDt)).concat(crm.map(r=>r.ticketDate));
+  const minDt = new Date(Math.min(...allDates.map(d=>d.getTime())));
+  const maxDt = new Date(Math.max(...allDates.map(d=>d.getTime())));
+
+  document.getElementById('f-from').value = minDt.toISOString().slice(0,10);
+  document.getElementById('f-to').value = maxDt.toISOString().slice(0,10);
+
+  const opts = (d1,d2) => `${(d1.getMonth()+1)}/${d1.getDate()} – ${(d2.getMonth()+1)}/${d2.getDate()}/${d2.getFullYear()}`;
+  document.getElementById('period-label').textContent = opts(minDt,maxDt);
+
+  // Extract unique agents from ACD (source of truth)
+  DATA.agents = [...new Set(acd.map(r=>r.agent))].filter(Boolean).sort();
+}
+
+// Normalize agent names from ACD format "LastName, FirstName" → "First Last"
+function normName(v){
+  if(!v || typeof v !== 'string') return '';
+  v = v.trim();
+  if(v.includes(',')) {
+    const parts = v.split(',').map(s=>s.trim());
+    return (parts[1]+' '+parts[0]).trim();
+  }
+  return v;
+}
+
+// CRM names are already "First Last" style, just trim
+function normCRMName(v){
+  if(!v || typeof v !== 'string') return '';
+  return v.trim().toLowerCase();
+}
+
+/* ═══════════════════════════════════════════════
+   FILTER HELPERS
+═══════════════════════════════════════════════ */
+function getFilters(){
+  const from = document.getElementById('f-from').value;
+  const to = document.getElementById('f-to').value;
+  const shift = document.getElementById('f-shift').value;
+  return {
+    fromDt: from ? new Date(from+'T00:00:00') : null,
+    toDt: to ? new Date(to+'T23:59:59') : null,
+    shift: shift ? parseInt(shift) : null,
+  };
+}
+
+function inRange(dt, f){
+  if(!dt) return false;
+  if(f.fromDt && dt < f.fromDt) return false;
+  if(f.toDt && dt > f.toDt) return false;
+  return true;
+}
+
+function inShift(dt, shiftNum){
+  if(!shiftNum || !dt) return true;
+  const h = dt.getHours(), m = dt.getMinutes();
+  const mins = h*60+m;
+  const s = SHIFT_TIMES[shiftNum];
+  const start = s.start[0]*60+s.start[1];
+  const end = s.end[0]*60+s.end[1];
+  if(start < end) return mins >= start && mins < end;
+  else return mins >= start || mins < end; // overnight
+}
+
+function filteredACD(agentName){
+  const f = getFilters();
+  return DATA.acd.filter(r => {
+    if(agentName && r.agent !== agentName) return false;
+    if(!inRange(r.startDt, f)) return false;
+    if(!inShift(r.startDt, f.shift)) return false;
+    return true;
+  });
+}
+
+function filteredCCDR(agentName){
+  const f = getFilters();
+  return DATA.ccdr.filter(r => {
+    if(agentName && r.agent !== agentName) return false;
+    if(!inRange(r.startDt, f)) return false;
+    if(!inShift(r.startDt, f.shift)) return false;
+    return true;
+  });
+}
+
+function filteredCRM(agentName){
+  const f = getFilters();
+  return DATA.crm.filter(r => {
+    if(agentName){
+      const an = agentName.toLowerCase();
+      if(!r.rawAgent.toLowerCase().includes(an.split(' ').pop()) &&
+         !r.rawAgent.toLowerCase().includes(an.split(' ')[0])) return false;
+    }
+    if(!inRange(r.ticketDate, f)) return false;
+    return true;
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   BUILD DASHBOARD
+═══════════════════════════════════════════════ */
+function buildDashboard(){
+  showLoading('Processing ' + (RAW.acd?.length||0) + ' call records…');
+  setTimeout(() => {
+    try {
+      processData();
+      document.getElementById('upload-screen').style.display = 'none';
+      document.getElementById('nav').style.display = 'flex';
+      document.getElementById('main-content').style.display = 'block';
+      buildHome();
+      buildValidationTab();
+      buildAgentSelectors();
+      selectedAgent = DATA.agents[0] || null;
+      markSelectedAgent();
+      buildT1();
+      hideLoading();
+    } catch(e){
+      hideLoading();
+      alert('Error building dashboard: ' + e.message + '\n' + e.stack);
+    }
+  }, 50);
+}
+
+function applyFilters(){
+  buildHome();
+  buildValidationTab();
+  if(selectedAgent){
+    buildT1(); buildT2(); buildT3(); buildT4(); buildT5();
+  }
+}
+
+function resetUpload(){
+  RAW = {ccdr:null,acd:null,crm:null};
+  DATA = {};
+  document.getElementById('upload-screen').style.display = 'flex';
+  document.getElementById('nav').style.display = 'none';
+  document.getElementById('main-content').style.display = 'none';
+  ['ccdr','acd','crm'].forEach(k=>{
+    document.getElementById('status-'+k).innerHTML='';
+    document.getElementById('drop-'+k).style.borderColor='';
+  });
+  document.getElementById('btn-load').style.display='none';
+  document.getElementById('upload-validation').innerHTML='';
+}
+
+function showLoading(msg='Processing…'){
+  document.getElementById('loading-msg').textContent=msg;
+  document.getElementById('loading-overlay').style.display='flex';
+}
+function hideLoading(){document.getElementById('loading-overlay').style.display='none'}
+
+/* ═══════════════════════════════════════════════
+   TAB NAVIGATION
+═══════════════════════════════════════════════ */
+function showTab(id, btn){
+  document.querySelectorAll('.tab-pane').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='t2') buildT2();
+  if(id==='t3') buildT3();
+  if(id==='t4') buildT4();
+  if(id==='t5') buildT5();
+}
+
+/* ═══════════════════════════════════════════════
+   AGENT SELECTORS
+═══════════════════════════════════════════════ */
+function buildAgentSelectors(){
+  ['','t2','t3','t4','t5'].forEach(suffix=>{
+    const id = suffix ? 'agent-selector-'+suffix : 'agent-selector';
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.innerHTML = '<span style="font-size:11px;color:var(--muted);margin-right:4px">Agent:</span>' +
+      DATA.agents.map(a =>
+        `<span class="agent-chip" data-agent="${a}" onclick="selectAgent('${a}')">${a}</span>`
+      ).join('');
+  });
+  markSelectedAgent();
+}
+
+function selectAgent(name){
+  selectedAgent = name;
+  markSelectedAgent();
+  buildT1(); buildT2(); buildT3(); buildT4(); buildT5();
+}
+
+function markSelectedAgent(){
+  document.querySelectorAll('.agent-chip').forEach(c=>{
+    c.classList.toggle('sel', c.dataset.agent === selectedAgent);
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   HOME TAB
+═══════════════════════════════════════════════ */
+function buildHome(){
+  const acd = filteredACD(null);
+  const ccdr = filteredCCDR(null);
+  const crm = filteredCRM(null);
+
+  const totalAgents = new Set(acd.map(r=>r.agent)).size;
+  const totalInbound = acd.filter(r=>r.callType==='Inbound ACD'||r.callType==='Inbound').length;
+  const totalOutbound = acd.filter(r=>r.callType==='Outbound'&&r.talkSecs>30).length;
+  const totalEmails = crm.filter(r=>r.interaction==='Email').length;
+  const totalChats = crm.filter(r=>r.interaction==='Chat').length;
+  const totalTickets = new Set(crm.map(r=>r.ticketId)).size;
+  const abandoned = ccdr.filter(r=>r.result==='Abandoned').length;
+  const offered = ccdr.filter(r=>r.result!=='').length;
+  const bounceRate = offered ? (abandoned/offered*100).toFixed(1) : '0.0';
+
+  // FCR across all agents
+  const fcrData = calcFCR(crm);
+
+  document.getElementById('home-kpis').innerHTML = `
+    ${kpiCard('Active Agents', totalAgents, '')}
+    ${kpiCard('Inbound Calls', totalInbound.toLocaleString(), '')}
+    ${kpiCard('Outbound Calls', totalOutbound.toLocaleString(), '>30s only')}
+    ${kpiCard('Emails', totalEmails.toLocaleString(), '')}
+    ${kpiCard('Chats', totalChats.toLocaleString(), '')}
+    ${kpiCard('Tickets', totalTickets.toLocaleString(), 'unique')}
+    ${kpiCard('Bounce Rate', bounceRate+'%', abandoned+' abandoned', bounceRate>8?'red':bounceRate>5?'amber':'green')}
+    ${kpiCard('Team FCR', fcrData.pct+'%', fcrData.met+' met / '+fcrData.total+' total', fcrData.pct>=80?'green':fcrData.pct>=70?'amber':'red')}
+  `;
+
+  // Queue bars
+  const qMap = new Map();
+  ccdr.forEach(r=>{
+    if(!r.queue) return;
+    qMap.set(r.queue,(qMap.get(r.queue)||0)+1);
+  });
+  const topQ = [...qMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxQ = topQ[0]?.[1]||1;
+  document.getElementById('home-queue-bars').innerHTML = topQ.map(([q,n])=>
+    `<div class="bar-row"><div class="bar-lbl" title="${q}">${q}</div><div class="bar-track"><div class="bar-fill" style="width:${n/maxQ*100}%;background:var(--blue)"></div></div><div class="bar-val">${n.toLocaleString()}</div></div>`
+  ).join('');
+
+  // Interaction bars
+  const intMap = new Map();
+  crm.forEach(r=>intMap.set(r.interaction,(intMap.get(r.interaction)||0)+1));
+  const topI = [...intMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxI = topI[0]?.[1]||1;
+  const iColors = {'Call':'var(--teal)','Email':'var(--blue)','Chat':'var(--amber)','AI-Agent Call':'var(--purple)','TL Review':'var(--muted)','Dispute':'var(--red)'};
+  document.getElementById('home-interaction-bars').innerHTML = topI.map(([k,n])=>
+    `<div class="bar-row"><div class="bar-lbl">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${n/maxI*100}%;background:${iColors[k]||'var(--blue)'}"></div></div><div class="bar-val">${n.toLocaleString()}</div></div>`
+  ).join('');
+
+  // Call results
+  const resMap = new Map();
+  ccdr.forEach(r=>resMap.set(r.result||'Unknown',(resMap.get(r.result||'Unknown')||0)+1));
+  const topR = [...resMap.entries()].sort((a,b)=>b[1]-a[1]);
+  const maxR = topR[0]?.[1]||1;
+  const rColors = {'Answered':'var(--green)','Abandoned':'var(--red)','Overflow - Time':'var(--amber)','Transferred':'var(--blue)'};
+  document.getElementById('home-result-bars').innerHTML = topR.map(([k,n])=>
+    `<div class="bar-row"><div class="bar-lbl">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${n/maxR*100}%;background:${rColors[k]||'var(--muted)'}"></div></div><div class="bar-val">${n.toLocaleString()}</div></div>`
+  ).join('');
+
+  buildRoster(acd, crm, ccdr);
+}
+
+function buildRoster(acd, crm, ccdr){
+  const agents = DATA.agents;
+  const html = agents.map(agent=>{
+    const aCalls = acd.filter(r=>r.agent===agent && (r.callType==='Inbound ACD'||r.callType==='Inbound'));
+    const aCRM = crm.filter(r=>{
+      const an = agent.toLowerCase();
+      return r.rawAgent.toLowerCase().includes(an.split(' ').pop()) ||
+             r.rawAgent.toLowerCase().includes(an.split(' ')[0]);
+    });
+    const fcrD = calcFCR(aCRM);
+    const initials = agent.split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+    const fcrcol = fcrD.pct>=80?'var(--green)':fcrD.pct>=70?'var(--amber)':'var(--red)';
+    return `<div class="agent-home-card" onclick="selectAgent('${agent}');showTab('t1',document.querySelectorAll('.nav-btn')[1])">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div class="avatar">${initials}</div>
+        <div><div style="font-weight:600;font-size:12px">${agent}</div><div style="font-size:11px;color:var(--muted)">${aCalls.length} calls</div></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span class="tag tag-blue">${aCalls.length} in</span>
+        <span class="tag ${fcrD.pct>=80?'tag-green':fcrD.pct>=70?'tag-amber':'tag-red'}">${fcrD.pct}% FCR</span>
+      </div>
+      <div class="fcr-bar" style="margin-top:8px"><div class="fcr-fill" style="width:${Math.min(fcrD.pct,100)}%;background:${fcrcol}"></div></div>
+    </div>`;
+  }).join('');
+  document.getElementById('agent-roster').innerHTML = html;
+}
+
+function filterRoster(q){
+  document.querySelectorAll('.agent-home-card').forEach(c=>{
+    c.style.display = c.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+
+function kpiCard(label, val, sub, color){
+  const colMap = {green:'color:var(--green)', amber:'color:var(--amber)', red:'color:var(--red)'};
+  return `<div class="kpi"><div class="kpi-label">${label}</div><div class="kpi-val" style="${colMap[color]||''}">${val}</div>${sub?'<div class="kpi-sub">'+sub+'</div>':''}</div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   TAB 1 – INDIVIDUAL
+═══════════════════════════════════════════════ */
+function buildT1(){
+  if(!selectedAgent) return;
+  const agent = selectedAgent;
+  const acd = filteredACD(agent);
+  const crm = filteredCRM(agent);
+  const ccdrA = filteredCCDR(agent);
+
+  const inbound = acd.filter(r=>r.callType==='Inbound ACD'||r.callType==='Inbound');
+  const outbound = acd.filter(r=>r.callType==='Outbound'&&r.talkSecs>30);
+  const emails = crm.filter(r=>r.interaction==='Email');
+  const chats = crm.filter(r=>r.interaction==='Chat');
+  const escs = crm.filter(r=>r.interaction?.toLowerCase().includes('escalation'));
+  const tickets = new Set(crm.map(r=>r.ticketId)).size;
+  const interactions = crm.filter(r=>r.interaction && !FCR_EXCLUDE.has(r.interaction)).length;
+
+  // Daily productivity target
+  const f = getFilters();
+  const days = f.fromDt && f.toDt ? Math.max(1, Math.ceil((f.toDt-f.fromDt)/86400000)) : 1;
+  const prodPerDay = Math.round((inbound.length + outbound.length + emails.length + chats.length)/days);
+
+  // AHT
+  const avgTalk = inbound.length ? avg(inbound.map(r=>r.talkSecs)) : 0;
+  const avgHold = inbound.length ? avg(inbound.map(r=>r.holdSecs)) : 0;
+  const avgAHT = avgTalk + avgHold + 30; // 30s wrap
+
+  // Queue KPIs from CCDR
+  const offered = ccdrA.length;
+  const answered = ccdrA.filter(r=>r.result==='Answered').length;
+  const abandoned = ccdrA.filter(r=>r.result==='Abandoned').length;
+  const bounced = ccdrA.filter(r=>r.bounces>0).length;
+  const bounceRate = offered ? (bounced/offered*100).toFixed(1) : '0.0';
+
+  // Bounced drill-down
+  const bouncedRows = ccdrA.filter(r=>r.bounces>0).sort((a,b)=>a.startDt-b.startDt);
+
+  // FCR
+  const fcrD = calcFCR(crm);
+
+  const initials = agent.split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+
+  document.getElementById('t1-content').innerHTML = `
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+    <div class="avatar" style="width:44px;height:44px;font-size:16px">${initials}</div>
+    <div><div style="font-size:16px;font-weight:700">${agent}</div><div style="font-size:12px;color:var(--muted)">Agent · ${fmtDate(f.fromDt||null)} – ${fmtDate(f.toDt||null)}</div></div>
+  </div>
+
+  <div class="kpi-grid">
+    ${kpiCard('Inbound Calls', inbound.length, '')}
+    ${kpiCard('Outbound Calls', outbound.length, '>30s')}
+    ${kpiCard('Emails', emails.length, '')}
+    ${kpiCard('Chats', chats.length, '')}
+    ${kpiCard('Escalations', escs.length, '')}
+    ${kpiCard('Tickets', tickets, 'unique')}
+    ${kpiCard('Productivity/day', prodPerDay, 'Target 60+', prodPerDay>=60?'green':prodPerDay>=45?'amber':'red')}
+    ${kpiCard('FCR', fcrD.pct+'%', fcrD.met+' met', fcrD.pct>=80?'green':fcrD.pct>=70?'amber':'red')}
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex:1;min-width:200px">
+      <div class="card-title">Call metrics</div>
+      <div class="stat-row"><span class="sk">Avg talk time</span><span class="sv">${fmtSecs(avgTalk)}</span></div>
+      <div class="stat-row"><span class="sk">Avg hold time</span><span class="sv ${avgHold>240?'trend-dn':''}">${fmtSecs(avgHold)}</span></div>
+      <div class="stat-row"><span class="sk">Avg AHT</span><span class="sv ${avgAHT>330?'trend-dn':''}">${fmtSecs(avgAHT)}</span></div>
+      <div class="stat-row"><span class="sk">Total talk time</span><span class="sv">${fmtSecs(sum(inbound.map(r=>r.talkSecs)))}</span></div>
+      <div class="stat-row"><span class="sk">Total hold time</span><span class="sv">${fmtSecs(sum(inbound.map(r=>r.holdSecs)))}</span></div>
+    </div>
+    <div class="card" style="flex:1;min-width:200px">
+      <div class="card-title">Queue KPIs</div>
+      <div class="stat-row"><span class="sk">Calls offered</span><span class="sv">${offered}</span></div>
+      <div class="stat-row"><span class="sk">Calls answered</span><span class="sv">${answered}</span></div>
+      <div class="stat-row"><span class="sk">Abandoned</span><span class="sv">${abandoned}</span></div>
+      <div class="stat-row"><span class="sk">Bounced calls</span><span class="sv">${bounced}</span></div>
+      <div class="stat-row"><span class="sk">Bounce rate</span><span class="sv ${bounceRate>8?'trend-dn':''}">${bounceRate}%</span></div>
+    </div>
+    <div class="card" style="flex:2;min-width:280px">
+      <div class="card-title">CRM activity breakdown</div>
+      <div id="t1-crm-bars"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Bounced / abandoned call drill-down <span class="sub">${bouncedRows.length} records</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Time</th><th>Queue</th><th>Wait</th><th>Result</th><th>Caller</th></tr></thead>
+        <tbody>${bouncedRows.slice(0,50).map(r=>`
+          <tr><td>${fmtDate(r.startDt)}</td><td>${fmtTime(r.startDt)}</td><td>${r.queue}</td><td>${fmtSecs(r.waitSecs)}</td><td><span class="tag tag-red">${r.result}</span></td><td>${maskPhone(r.callerNum)}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Recent calls <span class="sub">last 50</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Talk</th><th>Hold</th><th>AHT</th><th>Caller</th></tr></thead>
+        <tbody>${acd.slice(-50).reverse().map(r=>`
+          <tr><td>${fmtDate(r.startDt)}</td><td>${fmtTime(r.startDt)}</td>
+          <td><span class="tag ${r.callType==='Inbound ACD'||r.callType==='Inbound'?'tag-blue':'tag-teal'}">${r.callType==='Inbound ACD'?'Inbound':r.callType}</span></td>
+          <td>${fmtSecs(r.talkSecs)}</td><td class="${r.holdSecs>240?'trend-dn':''}">${fmtSecs(r.holdSecs)}</td>
+          <td class="${(r.talkSecs+r.holdSecs+30)>330?'trend-dn':''}">${fmtSecs(r.talkSecs+r.holdSecs+30)}</td>
+          <td>${maskPhone(r.callerNum)}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  </div>
+  `;
+
+  // CRM bars
+  const intMap = new Map();
+  crm.forEach(r=>intMap.set(r.interaction,(intMap.get(r.interaction)||0)+1));
+  const topI = [...intMap.entries()].sort((a,b)=>b[1]-a[1]);
+  const maxI = topI[0]?.[1]||1;
+  const iColors2 = {'Call':'var(--teal)','Email':'var(--blue)','Chat':'var(--amber)','AI-Agent Call':'var(--purple)','TL Review':'var(--muted)','Dispute':'var(--red)'};
+  document.getElementById('t1-crm-bars').innerHTML = topI.map(([k,n])=>
+    `<div class="bar-row"><div class="bar-lbl">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${n/maxI*100}%;background:${iColors2[k]||'var(--blue)'}"></div></div><div class="bar-val">${n}</div></div>`
+  ).join('');
+}
+
+/* ═══════════════════════════════════════════════
+   TAB 2 – QUEUE
+═══════════════════════════════════════════════ */
+function buildT2(){
+  if(!selectedAgent) return;
+  const agent = selectedAgent;
+  const acd = filteredACD(agent);
+  const ccdrA = filteredCCDR(agent);
+
+  // Per-queue summary from CCDR
+  const qMap = new Map();
+  ccdrA.filter(r=>r.result==='Answered').forEach(r=>{
+    const q = r.queue;
+    if(!qMap.has(q)) qMap.set(q,{calls:0,talk:0,hold:0,wrap:0});
+    const d = qMap.get(q);
+    d.calls++; d.talk+=r.talkSecs; d.hold+=r.holdSecs; d.wrap+=r.wrapSecs;
+  });
+  const qRows = [...qMap.entries()].sort((a,b)=>b[1].calls-a[1].calls);
+  const totalCalls = qRows.reduce((s,[,d])=>s+d.calls,0)||1;
+
+  // High hold / long AHT flags
+  const answered = ccdrA.filter(r=>r.result==='Answered');
+  const highHold = answered.filter(r=>r.holdSecs>240);
+  const longAHT = answered.filter(r=>(r.talkSecs+r.holdSecs+r.wrapSecs)>330);
+
+  document.getElementById('t2-content').innerHTML = `
+  <div class="kpi-grid">
+    ${kpiCard('Queues served', qRows.length, '')}
+    ${kpiCard('Total answered', answered.length, '')}
+    ${kpiCard('High hold calls', highHold.length, '>4 min', highHold.length>5?'red':highHold.length>0?'amber':'green')}
+    ${kpiCard('Long AHT calls', longAHT.length, '>5m 30s', longAHT.length>5?'red':longAHT.length>0?'amber':'green')}
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex:2;min-width:300px">
+      <div class="card-title">Queue summary</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Queue</th><th>Calls</th><th>Share</th><th>Avg Talk</th><th>Avg Hold</th><th>Avg AHT</th></tr></thead>
+          <tbody>${qRows.map(([q,d])=>{
+            const aht = d.calls ? (d.talk+d.hold)/d.calls+30 : 0;
+            return `<tr><td>${q}</td><td>${d.calls}</td>
+              <td><div class="bar-track" style="width:80px;display:inline-block;vertical-align:middle"><div class="bar-fill" style="width:${d.calls/totalCalls*100}%;background:var(--blue)"></div></div> ${(d.calls/totalCalls*100).toFixed(1)}%</td>
+              <td>${fmtSecs(d.calls?d.talk/d.calls:0)}</td>
+              <td class="${d.calls&&d.hold/d.calls>240?'trend-dn':''}">${fmtSecs(d.calls?d.hold/d.calls:0)}</td>
+              <td class="${aht>330?'trend-dn':''}">${fmtSecs(aht)}</td></tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="flex:1;min-width:200px">
+      <div class="card-title">Queue distribution</div>
+      ${qRows.slice(0,8).map(([q,d])=>`
+        <div class="bar-row"><div class="bar-lbl" title="${q}">${q}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${d.calls/totalCalls*100}%;background:var(--blue)"></div></div>
+        <div class="bar-val">${(d.calls/totalCalls*100).toFixed(0)}%</div></div>`).join('')}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">High hold time drill-down <span class="sub">${highHold.length} calls · hold >4 min</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Time</th><th>Queue</th><th>Hold</th><th>Talk</th><th>AHT</th><th>Caller</th></tr></thead>
+        <tbody>${highHold.sort((a,b)=>b.holdSecs-a.holdSecs).slice(0,30).map(r=>`
+          <tr><td>${fmtDate(r.startDt)}</td><td>${fmtTime(r.startDt)}</td><td>${r.queue}</td>
+          <td><span class="tag tag-red">${fmtSecs(r.holdSecs)}</span></td>
+          <td>${fmtSecs(r.talkSecs)}</td><td>${fmtSecs(r.talkSecs+r.holdSecs+r.wrapSecs)}</td>
+          <td>${maskPhone(r.callerNum)}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Long AHT drill-down <span class="sub">${longAHT.length} calls · AHT >5m 30s</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Time</th><th>Queue</th><th>Talk</th><th>Hold</th><th>AHT</th><th>Caller</th></tr></thead>
+        <tbody>${longAHT.sort((a,b)=>(b.talkSecs+b.holdSecs)-(a.talkSecs+a.holdSecs)).slice(0,30).map(r=>`
+          <tr><td>${fmtDate(r.startDt)}</td><td>${fmtTime(r.startDt)}</td><td>${r.queue}</td>
+          <td>${fmtSecs(r.talkSecs)}</td><td>${fmtSecs(r.holdSecs)}</td>
+          <td><span class="tag tag-red">${fmtSecs(r.talkSecs+r.holdSecs+r.wrapSecs)}</span></td>
+          <td>${maskPhone(r.callerNum)}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  </div>
+  `;
+}
+
+/* ═══════════════════════════════════════════════
+   TAB 3 – WORK PATTERN
+═══════════════════════════════════════════════ */
+function buildT3(){
+  if(!selectedAgent) return;
+  const agent = selectedAgent;
+  const acd = filteredACD(agent).sort((a,b)=>a.startDt-b.startDt);
+  const crm = filteredCRM(agent);
+
+  const inbound = acd.filter(r=>r.callType==='Inbound ACD'||r.callType==='Inbound');
+  const outbound = acd.filter(r=>r.callType==='Outbound'&&r.talkSecs>30);
+
+  // Hourly breakdown
+  const hourMap = new Array(24).fill(0).map(()=>({calls:0,emails:0,chats:0}));
+  inbound.forEach(r=>{ if(r.startDt) hourMap[r.startDt.getHours()].calls++ });
+  crm.filter(r=>r.interaction==='Email').forEach(r=>{ if(r.ticketDate) hourMap[r.ticketDate.getHours()].emails++ });
+  crm.filter(r=>r.interaction==='Chat').forEach(r=>{ if(r.ticketDate) hourMap[r.ticketDate.getHours()].chats++ });
+
+  // Gap between calls (wrap-up analysis)
+  const gaps = [];
+  for(let i=1;i<inbound.length;i++){
+    const prev = inbound[i-1], curr = inbound[i];
+    if(prev.endDt && curr.startDt){
+      const gap = (curr.startDt - prev.endDt)/1000;
+      if(gap>=0 && gap<1800) gaps.push({gap, prevEnd:prev.endDt, nextStart:curr.startDt});
+    }
+  }
+  const gapBuckets = {b0:0,b30:0,b60:0,b120:0};
+  gaps.forEach(g=>{
+    if(g.gap<30) gapBuckets.b0++;
+    else if(g.gap<60) gapBuckets.b30++;
+    else if(g.gap<120) gapBuckets.b60++;
+    else gapBuckets.b120++;
+  });
+
+  const avgGap = gaps.length ? avg(gaps.map(g=>g.gap)) : 0;
+  const avgTalk = inbound.length ? avg(inbound.map(r=>r.talkSecs)) : 0;
+  const avgHold = inbound.length ? avg(inbound.map(r=>r.holdSecs)) : 0;
+  const avgWrap = inbound.length ? avg(inbound.map(r=>r.wrapSecs)) : 0;
+
+  // Hourly chart hours with activity
+  const activeHours = hourMap.map((h,i)=>h.calls+h.emails+h.chats>0?i:-1).filter(i=>i>=0);
+  const startH = activeHours.length ? Math.max(0,activeHours[0]-1) : 8;
+  const endH = activeHours.length ? Math.min(23,activeHours[activeHours.length-1]+1) : 18;
+  const hourlySlice = hourMap.slice(startH, endH+1);
+  const maxHour = Math.max(...hourlySlice.map(h=>h.calls+h.emails+h.chats), 1);
+
+  document.getElementById('t3-content').innerHTML = `
+  <div class="card">
+    <div class="card-title">Hourly productivity — ${agent}</div>
+    <div style="display:flex;align-items:flex-end;gap:4px;height:100px;padding:0 4px;margin-bottom:4px">
+      ${hourlySlice.map((h,i)=>{
+        const total=h.calls+h.emails+h.chats;
+        const ch=Math.round(h.calls/maxHour*90), eh=Math.round(h.emails/maxHour*90), hch=Math.round(h.chats/maxHour*90);
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px">
+          <div style="display:flex;align-items:flex-end;gap:1px;height:90px">
+            <div style="width:8px;border-radius:2px 2px 0 0;background:var(--teal);height:${ch}px" title="Calls: ${h.calls}"></div>
+            <div style="width:8px;border-radius:2px 2px 0 0;background:var(--blue);height:${eh}px" title="Emails: ${h.emails}"></div>
+            <div style="width:8px;border-radius:2px 2px 0 0;background:var(--amber);height:${hch}px" title="Chats: ${h.chats}"></div>
+          </div>
+          <div style="font-size:9px;color:var(--faint)">${startH+i}h</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;gap:12px;font-size:11px;color:var(--muted)">
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--teal);margin-right:3px"></span>Calls</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--blue);margin-right:3px"></span>Email</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--amber);margin-right:3px"></span>Chat</span>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex:1;min-width:200px">
+      <div class="card-title">Call pressure</div>
+      <div class="stat-row"><span class="sk">Inbound calls</span><span class="sv">${inbound.length}</span></div>
+      <div class="stat-row"><span class="sk">Outbound calls</span><span class="sv">${outbound.length}</span></div>
+      <div class="stat-row"><span class="sk">Avg talk time</span><span class="sv">${fmtSecs(avgTalk)}</span></div>
+      <div class="stat-row"><span class="sk">Avg hold time</span><span class="sv ${avgHold>240?'trend-dn':''}">${fmtSecs(avgHold)}</span></div>
+      <div class="stat-row"><span class="sk">Avg wrap-up</span><span class="sv">${fmtSecs(avgWrap)}</span></div>
+      <div class="stat-row"><span class="sk">Avg gap between calls</span><span class="sv">${fmtSecs(avgGap)}</span></div>
+    </div>
+    <div class="card" style="flex:1;min-width:200px">
+      <div class="card-title">Wrap-up gap buckets</div>
+      ${barItem('0–30s',gapBuckets.b0,Math.max(1,...Object.values(gapBuckets)),'var(--green)')}
+      ${barItem('30–60s',gapBuckets.b30,Math.max(1,...Object.values(gapBuckets)),'var(--teal)')}
+      ${barItem('60–120s',gapBuckets.b60,Math.max(1,...Object.values(gapBuckets)),'var(--amber)')}
+      ${barItem('120s+',gapBuckets.b120,Math.max(1,...Object.values(gapBuckets)),'var(--red)')}
+    </div>
+    <div class="card" style="flex:2;min-width:280px">
+      <div class="card-title">Wrap-up gap drill-down <span class="sub">${gaps.length} inter-call gaps</span></div>
+      <div class="tbl-wrap" style="max-height:220px">
+        <table>
+          <thead><tr><th>Prev call end</th><th>Next call start</th><th>Gap</th><th></th></tr></thead>
+          <tbody>${gaps.filter(g=>g.gap>60).sort((a,b)=>b.gap-a.gap).slice(0,30).map(g=>`
+            <tr><td>${fmtTime(g.prevEnd)}</td><td>${fmtTime(g.nextStart)}</td>
+            <td><span class="tag ${g.gap>120?'tag-red':'tag-amber'}">${fmtSecs(g.gap)}</span></td>
+            <td>${g.gap>120?'⚠ Long idle':''}</td></tr>
+          `).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">All calls timeline <span class="sub">sorted chronologically</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Time</th><th>End</th><th>Type</th><th>Talk</th><th>Hold</th><th>Wrap</th><th>AHT</th></tr></thead>
+        <tbody>${acd.slice(0,80).map(r=>`
+          <tr><td>${fmtDate(r.startDt)}</td><td>${fmtTime(r.startDt)}</td><td>${fmtTime(r.endDt)}</td>
+          <td><span class="tag ${r.callType==='Inbound ACD'||r.callType==='Inbound'?'tag-blue':r.callType==='Outbound'?'tag-teal':'tag-purple'}">${r.callType==='Inbound ACD'?'Inbound':r.callType}</span></td>
+          <td>${fmtSecs(r.talkSecs)}</td><td class="${r.holdSecs>240?'trend-dn':''}">${fmtSecs(r.holdSecs)}</td>
+          <td>${fmtSecs(r.wrapSecs)}</td>
+          <td class="${r.talkSecs+r.holdSecs+r.wrapSecs>330?'trend-dn':''}">${fmtSecs(r.talkSecs+r.holdSecs+r.wrapSecs)}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  </div>
+  `;
+}
+
+function barItem(label,val,max,color){
+  return `<div class="bar-row"><div class="bar-lbl">${label}</div><div class="bar-track"><div class="bar-fill" style="width:${val/max*100}%;background:${color}"></div></div><div class="bar-val">${val}</div></div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   FCR CALC
+═══════════════════════════════════════════════ */
+function calcFCR(crmRows){
+  // Group by ticket ID, count customer-facing interactions
+  const ticketMap = new Map();
+  crmRows.forEach(r=>{
+    if(!r.ticketId || FCR_EXCLUDE.has(r.interaction)) return;
+    const contacts = ticketMap.get(r.ticketId) || [];
+    contacts.push(r);
+    ticketMap.set(r.ticketId, contacts);
+  });
+  let met=0, failed=0, failedList=[];
+  ticketMap.forEach((contacts,tid)=>{
+    if(contacts.length===1) met++;
+    else { failed++; failedList.push({tid,contacts}); }
+  });
+  const total = met+failed;
+  const pct = total ? Math.round(met/total*100) : 0;
+  return {met, failed, total, pct, failedList};
+}
+
+/* ═══════════════════════════════════════════════
+   TAB 4 – QUALITY
+═══════════════════════════════════════════════ */
+function buildT4(){
+  if(!selectedAgent) return;
+  const agent = selectedAgent;
+  const crm = filteredCRM(agent);
+
+  const fcrD = calcFCR(crm);
+
+  // Duplicate tickets (same OGI + Reason + SubReason)
+  const dupsMap = new Map();
+  crm.forEach(r=>{
+    const key = (r.ogi||'NOOGI')+'|'+(r.reason||'')+'|'+(r.subReason||'');
+    if(key==='NOOGI||') return;
+    const entry = dupsMap.get(key)||{ogi:r.ogi,reason:r.reason,subReason:r.subReason,tickets:new Set()};
+    entry.tickets.add(r.ticketId);
+    dupsMap.set(key, entry);
+  });
+  const dups = [...dupsMap.values()].filter(d=>d.tickets.size>1);
+
+  // Missing CRM logs (calls in ACD with no matching CRM on same day — simplified)
+  const acdForAgent = filteredACD(agent).filter(r=>r.callType==='Inbound ACD'||r.callType==='Inbound');
+  const crmDays = new Set(crm.filter(r=>r.interaction==='Call').map(r=>dateKey(r.ticketDate)));
+  const dayCallCount = new Map();
+  acdForAgent.forEach(r=>{ const dk=dateKey(r.startDt); dayCallCount.set(dk,(dayCallCount.get(dk)||0)+1); });
+  const crmCallCount = new Map();
+  crm.filter(r=>r.interaction==='Call').forEach(r=>{ const dk=dateKey(r.ticketDate); crmCallCount.set(dk,(crmCallCount.get(dk)||0)+1); });
+  const missingLogs = [];
+  dayCallCount.forEach((callCount,dk)=>{
+    const crmCount = crmCallCount.get(dk)||0;
+    if(callCount>crmCount) missingLogs.push({date:dk, calls:callCount, crm:crmCount, missing:callCount-crmCount});
+  });
+
+  // Multiple interactions same ticket same day
+  const multiMap = new Map();
+  crm.forEach(r=>{
+    const key = r.ticketId+'|'+dateKey(r.ticketDate);
+    const entry = multiMap.get(key)||{ticketId:r.ticketId,date:r.ticketDate,interactions:[]};
+    entry.interactions.push(r.interaction);
+    multiMap.set(key, entry);
+  });
+  const multiInts = [...multiMap.values()].filter(e=>e.interactions.length>1);
+
+  document.getElementById('t4-content').innerHTML = `
+  <div class="kpi-grid">
+    ${kpiCard('FCR', fcrD.pct+'%', fcrD.met+' met / '+fcrD.total, fcrD.pct>=80?'green':fcrD.pct>=70?'amber':'red')}
+    ${kpiCard('FCR Failures', fcrD.failed, 'multi-contact tickets', fcrD.failed>5?'red':fcrD.failed>0?'amber':'green')}
+    ${kpiCard('Dup Ticket Candidates', dups.length, 'same OGI+Reason', dups.length>5?'red':dups.length>0?'amber':'green')}
+    ${kpiCard('Missing CRM Logs', missingLogs.reduce((s,r)=>s+r.missing,0), 'est. unlogged calls', missingLogs.length?'red':'green')}
+    ${kpiCard('Multi-Interaction', multiInts.length, 'same ticket+day', multiInts.length>3?'amber':'green')}
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex:1;min-width:260px">
+      <div class="card-title">FCR — ${fcrD.pct}%
+        <span class="sub">${fcrD.met} met, ${fcrD.failed} failed of ${fcrD.total} tickets</span>
+      </div>
+      <div class="fcr-bar" style="height:16px;margin-bottom:6px"><div class="fcr-fill" style="width:${fcrD.pct}%;background:${fcrD.pct>=80?'var(--teal)':fcrD.pct>=70?'var(--amber)':'var(--red)'}"></div></div>
+      <div class="card-title" style="margin-top:12px">FCR failure patterns</div>
+      <div class="tbl-wrap" style="max-height:240px">
+        <table>
+          <thead><tr><th>Ticket ID</th><th>Contact pattern</th><th>Reason</th><th>Contacts</th></tr></thead>
+          <tbody>${fcrD.failedList.slice(0,20).map(f=>`
+            <tr><td>${f.tid}</td>
+            <td>${f.contacts.map(c=>`<span class="tag ${c.interaction==='Call'?'tag-blue':c.interaction==='Email'?'tag-teal':'tag-amber'}" style="margin-right:2px">${c.interaction}</span>`).join('→')}</td>
+            <td>${f.contacts[0]?.reason||'—'}</td>
+            <td>${f.contacts.length}</td></tr>
+          `).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="flex:1;min-width:240px">
+      <div class="card-title">FCR failure by reason</div>
+      ${(()=>{
+        const rm = new Map();
+        fcrD.failedList.forEach(f=>rm.set(f.contacts[0]?.reason||'Unknown',(rm.get(f.contacts[0]?.reason||'Unknown')||0)+1));
+        const top = [...rm.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8);
+        const max = top[0]?.[1]||1;
+        return top.map(([r,n])=>`<div class="bar-row"><div class="bar-lbl" title="${r}">${r}</div><div class="bar-track"><div class="bar-fill" style="width:${n/max*100}%;background:var(--red)"></div></div><div class="bar-val">${n}</div></div>`).join('');
+      })()}
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex:1;min-width:260px">
+      <div class="card-title">Duplicate ticket candidates <span class="sub">${dups.length} groups</span></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>OGI</th><th>Reason</th><th>Sub Reason</th><th>Tickets</th></tr></thead>
+          <tbody>${dups.slice(0,20).map(d=>`
+            <tr><td>${d.ogi||'—'}</td><td>${d.reason}</td><td>${d.subReason}</td>
+            <td><span class="tag tag-red">${[...d.tickets].join(', ')}</span></td></tr>
+          `).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="flex:1;min-width:220px">
+      <div class="card-title">Missing CRM logging (estimated)</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>ACD Calls</th><th>CRM Calls</th><th>Missing</th></tr></thead>
+          <tbody>${missingLogs.sort((a,b)=>b.missing-a.missing).slice(0,15).map(r=>`
+            <tr><td>${r.date}</td><td>${r.calls}</td><td>${r.crm}</td><td><span class="tag tag-red">${r.missing}</span></td></tr>
+          `).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Multiple interactions — same ticket, same day <span class="sub">${multiInts.length} flags</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Ticket ID</th><th>Date</th><th>Interactions</th><th>Count</th></tr></thead>
+        <tbody>${multiInts.slice(0,20).map(m=>`
+          <tr><td>${m.ticketId}</td><td>${fmtDate(m.date)}</td>
+          <td>${m.interactions.map(i=>`<span class="tag tag-blue" style="margin-right:2px">${i}</span>`).join('')}</td>
+          <td>${m.interactions.length}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  </div>
+  `;
+}
+
+/* ═══════════════════════════════════════════════
+   TAB 5 – COACHING
+═══════════════════════════════════════════════ */
+function buildT5(){
+  if(!selectedAgent) return;
+  const agent = selectedAgent;
+  const acd = filteredACD(agent);
+  const crm = filteredCRM(agent);
+  const ccdrA = filteredCCDR(agent);
+
+  const inbound = acd.filter(r=>r.callType==='Inbound ACD'||r.callType==='Inbound');
+  const outbound = acd.filter(r=>r.callType==='Outbound'&&r.talkSecs>30);
+  const emails = crm.filter(r=>r.interaction==='Email');
+  const chats = crm.filter(r=>r.interaction==='Chat');
+  const f = getFilters();
+  const days = f.fromDt && f.toDt ? Math.max(1, Math.ceil((f.toDt-f.fromDt)/86400000)) : 1;
+  const prodPerDay = Math.round((inbound.length+outbound.length+emails.length+chats.length)/days);
+
+  const answered = ccdrA.filter(r=>r.result==='Answered');
+  const highHold = answered.filter(r=>r.holdSecs>240);
+  const longAHT = answered.filter(r=>(r.talkSecs+r.holdSecs+r.wrapSecs)>330);
+  const bounced = ccdrA.filter(r=>r.bounces>0);
+  const offered = ccdrA.length;
+  const bounceRate = offered ? (bounced.length/offered*100) : 0;
+
+  const fcrD = calcFCR(crm);
+
+  const dupsMap = new Map();
+  crm.forEach(r=>{
+    const key=(r.ogi||'x')+'|'+(r.reason||'')+'|'+(r.subReason||'');
+    const e=dupsMap.get(key)||{tickets:new Set()};
+    e.tickets.add(r.ticketId);
+    dupsMap.set(key,e);
+  });
+  const dupCount = [...dupsMap.values()].filter(d=>d.tickets.size>1).length;
+
+  // Top FCR failure reason
+  const fcrReasons = new Map();
+  fcrD.failedList.forEach(f=>fcrReasons.set(f.contacts[0]?.reason||'Unknown',(fcrReasons.get(f.contacts[0]?.reason||'Unknown')||0)+1));
+  const topFCRReason = [...fcrReasons.entries()].sort((a,b)=>b[1]-a[1])[0];
+
+  // High hold queue
+  const holdQueueMap = new Map();
+  highHold.forEach(r=>holdQueueMap.set(r.queue,(holdQueueMap.get(r.queue)||0)+1));
+  const topHoldQ = [...holdQueueMap.entries()].sort((a,b)=>b[1]-a[1])[0];
+
+  const strengths = [], improvements = [], coaching = [];
+
+  if(prodPerDay>=60) strengths.push(`Productivity ${prodPerDay}/day — consistently above the 60-contact target.`);
+  else improvements.push(`Productivity ${prodPerDay}/day — below the 60-contact daily target.`);
+
+  if(fcrD.pct>=80) strengths.push(`FCR ${fcrD.pct}% — meeting or exceeding the 80% threshold.`);
+  else { improvements.push(`FCR ${fcrD.pct}% — below 80% target.`); }
+
+  if(bounceRate<=6) strengths.push(`Bounce rate ${bounceRate.toFixed(1)}% — well within acceptable range.`);
+  else improvements.push(`Bounce rate ${bounceRate.toFixed(1)}% — above 6% threshold.`);
+
+  if(highHold.length===0) strengths.push('No calls with hold time exceeding 4 minutes.');
+  else improvements.push(`${highHold.length} call${highHold.length>1?'s':''} exceeded 4-minute hold time.`);
+
+  if(longAHT.length===0) strengths.push('No calls exceeding 5m 30s AHT target.');
+  else improvements.push(`${longAHT.length} call${longAHT.length>1?'s':''} exceeded 5:30 AHT.`);
+
+  if(dupCount>0) improvements.push(`${dupCount} duplicate ticket candidate${dupCount>1?'s':''} detected.`);
+  else strengths.push('No duplicate ticket candidates — clean CRM logging.');
+
+  // Coaching insights
+  if(highHold.length>0){
+    const qText = topHoldQ ? ` predominantly in ${topHoldQ[0]} queue (${topHoldQ[1]} of ${highHold.length})` : '';
+    coaching.push({type:'bad',text:`${highHold.length} calls exceeded 4-minute hold time${qText}. Review whether agent is placing customers on hold to contact vendors — consider warm transfer or supervisor escalation alternatives.`});
+  }
+  if(longAHT.length>0){
+    coaching.push({type:'warn',text:`${longAHT.length} calls exceeded 5:30 AHT. Hold time is typically the primary driver. Review call recordings to identify if hold time can be reduced through better pre-call preparation.`});
+  }
+  if(topFCRReason && fcrD.failed>0){
+    const pct = Math.round(topFCRReason[1]/fcrD.failed*100);
+    coaching.push({type:'warn',text:`${pct}% of FCR failures relate to "${topFCRReason[0]}". Consider targeted coaching on resolving this reason type at first contact.`});
+  }
+  if(bounceRate>6){
+    coaching.push({type:'bad',text:`Bounce rate ${bounceRate.toFixed(1)}% — calls are bouncing while agent is engaged. Review wrap-up time patterns; agent may be spending excess time post-call before becoming available.`});
+  }
+  if(dupCount>0){
+    coaching.push({type:'warn',text:`${dupCount} duplicate ticket candidates detected (same OGI + Reason + Sub Reason). Remind agent to search for existing tickets before creating new ones.`});
+  }
+  if(prodPerDay>=70) coaching.push({type:'good',text:`Strong productivity at ${prodPerDay} contacts/day — ${Math.round((prodPerDay-60)/60*100)}% above the 60-target. Recognise in team meeting.`});
+  if(!coaching.length) coaching.push({type:'info',text:'No significant coaching flags this period. Continue current performance trajectory.'});
+
+  document.getElementById('t5-content').innerHTML = `
+  <div class="row">
+    <div class="card" style="flex:1;min-width:220px">
+      <div class="card-title" style="color:var(--green)">✓ Strengths</div>
+      ${strengths.map(s=>`<div class="insight insight-good">${s}</div>`).join('')}
+    </div>
+    <div class="card" style="flex:1;min-width:220px">
+      <div class="card-title" style="color:var(--red)">⚠ Improvement areas</div>
+      ${improvements.map(s=>`<div class="insight insight-bad">${s}</div>`).join('')}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💡 Coaching opportunities — auto-generated for ${agent}</div>
+    ${coaching.map(c=>`<div class="insight insight-${c.type==='bad'?'bad':c.type==='warn'?'warn':c.type==='good'?'good':'info'}">${c.text}</div>`).join('')}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Performance snapshot</div>
+    <div class="row" style="gap:8px">
+      ${snapKPI('Productivity/day',prodPerDay,'Target 60+',prodPerDay>=60)}
+      ${snapKPI('FCR',fcrD.pct+'%','Target 80%+',fcrD.pct>=80)}
+      ${snapKPI('Bounce rate',bounceRate.toFixed(1)+'%','Target ≤6%',bounceRate<=6)}
+      ${snapKPI('High hold calls',highHold.length,'Target 0',highHold.length===0)}
+      ${snapKPI('Long AHT calls',longAHT.length,'Target 0',longAHT.length===0)}
+      ${snapKPI('Dup tickets',dupCount,'Target 0',dupCount===0)}
+    </div>
+  </div>
+  `;
+}
+
+function snapKPI(label,val,target,good){
+  return `<div class="kpi" style="flex:1;min-width:120px;border-left:3px solid ${good?'var(--green)':'var(--red)'}">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-val" style="font-size:20px;color:${good?'var(--green)':'var(--red)'}">${val}</div>
+    <div class="kpi-sub">${target}</div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   VALIDATION TAB
+═══════════════════════════════════════════════ */
+function buildValidationTab(){
+  if(!DATA.acd) return;
+  const acd = DATA.acd;
+  const ccdr = DATA.ccdr;
+  const crm = DATA.crm;
+
+  const noAgentACD = acd.filter(r=>!r.agent).length;
+  const noAgentCRM = crm.filter(r=>!r.rawAgent).length;
+  const noTicketCRM = crm.filter(r=>!r.ticketId).length;
+  const noOGI = crm.filter(r=>!r.ogi && r.interaction==='Call').length;
+  const aiRows = crm.filter(r=>r.rawAgent==='ai-decagon ai-decagon').length;
+  const abandoned = ccdr.filter(r=>r.result==='Abandoned').length;
+
+  const html = `
+  <div class="card">
+    <div class="card-title">Data validation report</div>
+    <div class="kpi-grid">
+      ${kpiCard('ACD Rows',acd.length.toLocaleString(),'')}
+      ${kpiCard('CCDR Rows',ccdr.length.toLocaleString(),'')}
+      ${kpiCard('CRM Rows',crm.length.toLocaleString(),'')}
+      ${kpiCard('Unique Agents',DATA.agents.length,'')}
+      ${kpiCard('AI-Agent Rows',aiRows,'excluded from agent metrics','')}
+      ${kpiCard('Abandoned Calls',abandoned,'CCDR',abandoned>100?'amber':'green')}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Validation checks</div>
+    ${validRow('ACD: Missing agent names', noAgentACD, noAgentACD===0)}
+    ${validRow('CRM: Missing agent names', noAgentCRM, noAgentCRM===0)}
+    ${validRow('CRM: Missing ticket IDs', noTicketCRM, noTicketCRM===0)}
+    ${validRow('CRM: Call rows with no OGI', noOGI, noOGI<50, 'Some calls legitimately have no OGI')}
+    ${validRow('Total unique tickets', new Set(crm.map(r=>r.ticketId)).size, true)}
+    ${validRow('Total unique interactions', new Set(crm.map(r=>r.interactionId)).size, true)}
+  </div>
+  <div class="card">
+    <div class="card-title">CRM agents in data (${[...new Set(crm.map(r=>r.rawAgent))].filter(Boolean).length} unique)</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+      ${[...new Set(crm.map(r=>r.rawAgent))].filter(Boolean).sort().map(a=>
+        `<span class="tag ${a==='ai-decagon ai-decagon'?'tag-purple':'tag-blue'}">${a}</span>`
+      ).join('')}
+    </div>
+  </div>
+  `;
+  document.getElementById('validation-content').innerHTML = html;
+}
+
+function validRow(label, val, ok, note=''){
+  const icon = ok ? '✓' : '⚠';
+  const color = ok ? 'var(--green)' : 'var(--amber)';
+  return `<div class="stat-row"><span class="sk">${icon} ${label}</span><span class="sv" style="color:${color}">${typeof val==='boolean'?'':val}${note?` <span style="color:var(--faint);font-weight:400">${note}</span>`:''}</span></div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   UTILS
+═══════════════════════════════════════════════ */
+function avg(arr){ return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0 }
+function sum(arr){ return arr.reduce((a,b)=>a+b,0) }
+function maskPhone(n){ 
+  if(!n) return '—';
+  const s = String(n);
+  return s.length>4 ? s.slice(0,s.length-4).replace(/./g,'*') + s.slice(-4) : s;
+}
+</script>
+</body>
+</html>
